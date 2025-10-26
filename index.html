@@ -671,7 +671,7 @@
                 seqG = getDegreeSequence(currentGraphG.nodes);
                 seqH = getDegreeSequence(currentGraphH.nodes);
                 const strSeqG = JSON.stringify(seqG);
-                const strSeqH = JSON.stringify(strSeqH);
+                const strSeqH = JSON.stringify(seqH); // Memperbaiki typo: strSeqH -> seqH
 
                 if (strSeqG !== strSeqH) {
                     messages.push(`Urutan derajat TIDAK SAMA.`);
@@ -778,5 +778,6 @@
     </script>
 </body>
 </html>
+
 
 
