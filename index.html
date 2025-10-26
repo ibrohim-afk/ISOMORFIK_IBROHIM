@@ -63,8 +63,8 @@
     </style>
 </head>
 <body class="p-4 md:p-8">
-    <!-- Container dibuat lebih besar (max-w-7xl) -->
-    <div class="max-w-7xl mx-auto bg-white p-6 md:p-10 rounded-xl shadow-lg">
+    <!-- Container dibuat lebih sempit (max-w-5xl) agar lebih rapi untuk 1 kolom -->
+    <div class="max-w-5xl mx-auto bg-white p-6 md:p-10 rounded-xl shadow-lg">
 
         <!-- PERBAIKAN RESPONSIVE: Judul dibuat lebih kecil di HP (text-2xl) dan besar di laptop (sm:text-3xl) -->
         <h1 class="text-2xl sm:text-3xl font-bold text-center text-gray-800 mb-2">Pengecek Isomorfisme Graf Dinamis</h1>
@@ -91,8 +91,8 @@
             <button id="createGraphButton" class="btn-secondary">Buat Kerangka Graf</button>
         </div>
 
-        <!-- Grid ini sudah responsif (1 kolom di HP, 2 di laptop) -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <!-- PERUBAHAN UTAMA: Menghapus lg:grid-cols-2 agar selalu 1 kolom -->
+        <div class="grid grid-cols-1 gap-8">
             <!-- Kolom Graf G --><div class="p-4 border border-gray-200 rounded-lg">
                 <h3 class="text-xl font-semibold text-center mb-3">Graf G</h3>
                 <!-- Kanvas diperbesar -->
@@ -778,4 +778,5 @@
     </script>
 </body>
 </html>
+
 
