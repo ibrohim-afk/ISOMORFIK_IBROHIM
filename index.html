@@ -18,6 +18,8 @@
             border-radius: 0.5rem; /* rounded-lg */
             border: 1px solid #d1d5db; /* border-gray-300 */
             cursor: pointer; /* Menandakan bisa di-klik */
+            /* --- PERBAIKAN RESPONSIVE --- */
+            @apply w-full h-auto; /* Membuat kanvas mengecil di HP */
         }
         .btn {
             @apply inline-block px-6 py-3 bg-blue-600 text-white font-medium text-sm leading-tight rounded-lg shadow-md hover:bg-blue-700 hover:shadow-lg focus:bg-blue-700 focus:shadow-lg focus:outline-none focus:ring-0 active:bg-blue-800 active:shadow-lg transition duration-150 ease-in-out;
@@ -64,17 +66,32 @@
     <!-- Container dibuat lebih besar (max-w-7xl) -->
     <div class="max-w-7xl mx-auto bg-white p-6 md:p-10 rounded-xl shadow-lg">
 
-        <h1 class="text-3xl font-bold text-center text-gray-800 mb-2">Pengecek Isomorfisme Graf Dinamis</h1>
+        <!-- PERBAIKAN RESPONSIVE: Judul dibuat lebih kecil di HP (text-2xl) dan besar di laptop (sm:text-3xl) -->
+        <h1 class="text-2xl sm:text-3xl font-bold text-center text-gray-800 mb-2">Pengecek Isomorfisme Graf Dinamis</h1>
         <p class="text-center text-gray-600 mb-6">Tentukan jumlah simpul, klik untuk menggambar sisi, lalu bandingkan.</p>
 
         <!-- Bagian Setup Jumlah Simpul -->
         <div class="setup-box">
-            <label for="nodeCount" class="text-sm font-medium text-gray-700">Jumlah Simpul per Graf:</label>
+            <label for="nodeCount" class="text-sm font-medium text-gray-700">Jumlah Simpul:</label>
             <input type="number" id="nodeCount" value="6" min="1" max="200" class="w-24 p-2 border border-gray-300 rounded-md text-center text-sm">
+            
+            <!-- TAMBAHAN BARU: Pilihan Bentuk Kerangka -->
+            <label for="layoutShape" class="text-sm font-medium text-gray-700 sm:ml-4">Bentuk:</label>
+            <select id="layoutShape" class="p-2 border border-gray-300 rounded-md text-sm">
+                <option value="otomatis" selected>Otomatis (Default)</option>
+                <option value="lingkaran">Lingkaran</option>
+                <option value="grid">Grid</option>
+                <!-- OPSI BARU DITAMBAHKAN DI SINI -->
+                <option value="garis">Garis</option>
+                <option value="spiral">Spiral</option>
+                <option value="acak">Acak</option>
+            </select>
+            <!-- AKHIR TAMBAHAN -->
+            
             <button id="createGraphButton" class="btn-secondary">Buat Kerangka Graf</button>
         </div>
 
-        <!-- Grid dibuat 1 kolom, tapi 2 kolom di layar besar (lg) -->
+        <!-- Grid ini sudah responsif (1 kolom di HP, 2 di laptop) -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <!-- Kolom Graf G --><div class="p-4 border border-gray-200 rounded-lg">
                 <h3 class="text-xl font-semibold text-center mb-3">Graf G</h3>
@@ -143,16 +160,12 @@
                     ctx.stroke();
                 }
                 
-                // Jangan gambar label jika terlalu banyak simpul
-                // DIUBAH: Hapus 'if (n <= 50)' agar label (u1, v1) selalu tampil
-                // if (n <= 50) { 
-                    // Label simpul (u1, v1, dst)
-                    ctx.fillStyle = '#111827';
-                    ctx.font = `${fontSize}px Inter`;
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'bottom';
-                    ctx.fillText(node.label, node.x, node.y - (nodeRadius + 2)); 
-                // } // Penutup if dihapus
+                // Label simpul (u1, v1, dst)
+                ctx.fillStyle = '#111827';
+                ctx.font = `${fontSize}px Inter`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'bottom';
+                ctx.fillText(node.label, node.x, node.y - (nodeRadius + 2)); 
 
                 // Jangan gambar derajat jika terlalu banyak simpul
                 if (n <= 100) {
@@ -228,17 +241,14 @@
         // --- Fungsi untuk Menampilkan Properti ke HTML ---
         function displayProperties(elementId, nodes, edges) {
             const el = document.getElementById(elementId);
-            // FIX: Mengembalikan blok 'if' yang hilang untuk mencegah error
             if (!nodes || nodes.length === 0) {
                 el.innerHTML = '';
                 return;
             }
             const degreeSequence = getDegreeSequence(nodes);
-            // Hitung jumlah sisi
             const edgeCount = Object.values(edges).filter(Boolean).length;
 
             let degreesList = '<ul>';
-            // FIX: Mengembalikan loop forEach yang hilang
             nodes.forEach(node => {
                 degreesList += `<li>deg(${node.label}) = ${node.degree}</li>`;
             });
@@ -246,7 +256,6 @@
             
             const listHeight = (nodes.length > 20) ? 'max-h-40' : 'max-h-24';
 
-            // FIX: Memastikan blok innerHTML ini benar
             el.innerHTML = `
                 <p><strong>Jumlah Simpul:</strong> ${nodes.length}</p>
                 <p><strong>Jumlah Sisi:</strong> ${edgeCount}</p>
@@ -262,7 +271,6 @@
         function getClickedNode(x, y, nodes) {
             const n = nodes.length;
             const nodeRadius = (n > 70) ? 3 : (n > 40) ? 5 : 8;
-            // Area klik lebih besar, terutama untuk simpul kecil
             const hitRadius = nodeRadius + 5; 
 
             for (const node of nodes) {
@@ -278,7 +286,6 @@
 
         // --- FUNGSI BARU: Membuat ID Sisi yang konsisten (cth: "u1-u5" bukan "u5-u1") ---
         function getEdgeKey(node1, node2) {
-            // Urutkan berdasarkan ID string
             if (node1.id < node2.id) {
                 return `${node1.id}-${node2.id}`;
             } else {
@@ -287,7 +294,6 @@
         }
         
         // --- FUNGSI BARU: Setup Listener Klik di Canvas ---
-        // FIX: Memulihkan fungsi ini ke versi lengkapnya
         function setupCanvasClickListener(graphId, canvas) {
             canvas.addEventListener('click', (event) => {
                 const isG = (graphId === 'G');
@@ -348,6 +354,9 @@
         
         function createGraphSkeletons() {
             const n = parseInt(document.getElementById('nodeCount').value, 10);
+            // --- BARU: Ambil nilai bentuk yang dipilih ---
+            const shape = document.getElementById('layoutShape').value;
+            
             if (isNaN(n) || n <= 0 || n > 200) {
                 alert("Masukkan jumlah simpul yang valid (1-200).");
                 return;
@@ -361,8 +370,6 @@
             const propsG = document.getElementById('propsG');
             const propsH = document.getElementById('propsH');
             
-            // Instruksi sudah ada di HTML, tidak perlu diubah
-            
             propsG.innerHTML = '';
             propsH.innerHTML = '';
             ctxG.clearRect(0, 0, ctxG.canvas.width, ctxG.canvas.height);
@@ -374,40 +381,68 @@
             const canvasHeight = ctxG.canvas.height;
             const margin = 40; // Jarak dari tepi kanvas
 
-            if (n <= 20) {
-                // --- MODE LINGKARAN (n <= 20) ---
-                const radius = Math.min(canvasWidth, canvasHeight) / 2 - margin;
-                const centerX = canvasWidth / 2;
-                const centerY = canvasHeight / 2;
-                
-                for (let i = 0; i < n; i++) {
-                    const angle = (i / n) * 2 * Math.PI - (Math.PI / 2); // Mulai dari atas
-                    const x = centerX + radius * Math.cos(angle);
-                    const y = centerY + radius * Math.sin(angle);
-                    
-                    currentGraphG.nodes.push({ id: 'u' + (i + 1), label: 'u' + (i + 1), x, y, degree: 0 });
-                    currentGraphH.nodes.push({ id: 'v' + (i + 1), label: 'v' + (i + 1), x, y, degree: 0 });
-                }
-            } else {
-                // --- MODE GRID (n > 20) ---
-                const cols = Math.ceil(Math.sqrt(n * (canvasWidth / canvasHeight)));
-                const rows = Math.ceil(n / cols);
-                
-                const xSpacing = (canvasWidth - 2 * margin) / (cols - 1 || 1);
-                const ySpacing = (canvasHeight - 2 * margin) / (rows - 1 || 1);
-
-                for (let i = 0; i < n; i++) {
-                    const row = Math.floor(i / cols);
-                    const col = i % cols;
-                    
-                    // Jika hanya 1 simpul, letakkan di tengah
-                    const x = (n === 1) ? canvasWidth / 2 : margin + col * xSpacing;
-                    const y = (n === 1) ? canvasHeight / 2 : margin + row * ySpacing;
-                    
-                    currentGraphG.nodes.push({ id: 'u' + (i + 1), label: 'u' + (i + 1), x, y, degree: 0 });
-                    currentGraphH.nodes.push({ id: 'v' + (i + 1), label: 'v' + (i + 1), x, y, degree: 0 });
-                }
+            // --- LOGIKA BENTUK BARU (Diperbarui) ---
+            let layoutType = shape;
+            if (layoutType === 'otomatis') {
+                layoutType = (n <= 20) ? 'lingkaran' : 'grid'; // Perilaku default
             }
+            // --- AKHIR LOGIKA BENTUK ---
+
+
+            // --- Loop Utama untuk Membuat Simpul ---
+            // Logika if/else yang lama dihapus dan diganti dengan switch
+            for (let i = 0; i < n; i++) {
+                let x, y;
+
+                switch (layoutType) {
+                    case 'lingkaran': {
+                        const radius = Math.min(canvasWidth, canvasHeight) / 2 - margin;
+                        const centerX = canvasWidth / 2;
+                        const centerY = canvasHeight / 2;
+                        const angle = (i / n) * 2 * Math.PI - (Math.PI / 2); // Mulai dari atas
+                        x = centerX + radius * Math.cos(angle);
+                        y = centerY + radius * Math.sin(angle);
+                        break;
+                    }
+                    case 'grid': {
+                        const cols = Math.ceil(Math.sqrt(n * (canvasWidth / canvasHeight)));
+                        const rows = Math.ceil(n / cols);
+                        const xSpacing = (canvasWidth - 2 * margin) / (cols - 1 || 1);
+                        const ySpacing = (canvasHeight - 2 * margin) / (rows - 1 || 1);
+                        const row = Math.floor(i / cols);
+                        const col = i % cols;
+                        x = (n === 1) ? canvasWidth / 2 : margin + col * xSpacing;
+                        y = (n === 1) ? canvasHeight / 2 : margin + row * ySpacing;
+                        break;
+                    }
+                    case 'garis': { // BENTUK BARU
+                        const xSpacing = (canvasWidth - 2 * margin) / (n - 1 || 1);
+                        const centerY = canvasHeight / 2;
+                        x = (n === 1) ? canvasWidth / 2 : margin + i * xSpacing;
+                        y = centerY;
+                        break;
+                    }
+                    case 'spiral': { // BENTUK BARU (Fermat's Spiral)
+                        const centerX = canvasWidth / 2;
+                        const centerY = canvasHeight / 2;
+                        const c = Math.min(canvasWidth, canvasHeight) / (2.2 * Math.sqrt(n)); // Konstanta skala
+                        const angle = i * 137.5 * (Math.PI / 180); // Sudut emas
+                        const radius = c * Math.sqrt(i + 1); // +1 agar simpul pertama tidak di 0,0
+                        x = centerX + radius * Math.cos(angle);
+                        y = centerY + radius * Math.sin(angle);
+                        break;
+                    }
+                    case 'acak': { // BENTUK BARU
+                        x = margin + Math.random() * (canvasWidth - 2 * margin);
+                        y = margin + Math.random() * (canvasHeight - 2 * margin);
+                        break;
+                    }
+                }
+                
+                currentGraphG.nodes.push({ id: 'u' + (i + 1), label: 'u' + (i + 1), x, y, degree: 0 });
+                currentGraphH.nodes.push({ id: 'v' + (i + 1), label: 'v' + (i + 1), x, y, degree: 0 });
+            }
+            // --- Akhir Loop Utama ---
 
 
             // Gambar graf awal (hanya simpul, belum ada sisi)
@@ -636,7 +671,7 @@
                 seqG = getDegreeSequence(currentGraphG.nodes);
                 seqH = getDegreeSequence(currentGraphH.nodes);
                 const strSeqG = JSON.stringify(seqG);
-                const strSeqH = JSON.stringify(seqH);
+                const strSeqH = JSON.stringify(strSeqH);
 
                 if (strSeqG !== strSeqH) {
                     messages.push(`Urutan derajat TIDAK SAMA.`);
@@ -743,6 +778,4 @@
     </script>
 </body>
 </html>
-
-
 
