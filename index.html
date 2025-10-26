@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pengecek Isomorfisme Graf Dinamis</title>
+    <!-- Memuat Tailwind CSS untuk styling --><script src="https://cdn.tailwindcss.com"></script>
+    <!-- Menggunakan font Inter --><link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* bg-gray-100 */
+        }
+        canvas {
+            background-color: #ffffff;
+            border-radius: 0.5rem; /* rounded-lg */
+            border: 1px solid #d1d5db; /* border-gray-300 */
+            cursor: pointer; /* Menandakan bisa di-klik */
+        }
+        .btn {
+            @apply inline-block px-6 py-3 bg-blue-600 text-white font-medium text-sm leading-tight rounded-lg shadow-md hover:bg-blue-700 hover:shadow-lg focus:bg-blue-700 focus:shadow-lg focus:outline-none focus:ring-0 active:bg-blue-800 active:shadow-lg transition duration-150 ease-in-out;
+        }
+        .btn-secondary {
+            @apply inline-block px-5 py-2 bg-gray-600 text-white font-medium text-xs leading-tight rounded-lg shadow-md hover:bg-gray-700 hover:shadow-lg focus:bg-gray-700 focus:shadow-lg focus:outline-none focus:ring-0 active:bg-gray-800 active:shadow-lg transition duration-150 ease-in-out;
+        }
+        #resultMessage {
+            @apply mt-6 p-4 rounded-lg text-center font-medium;
+        }
+        .result-success {
+            @apply bg-green-100 text-green-800;
+        }
+        .result-error {
+            @apply bg-red-100 text-red-800;
+        }
+        .result-warning {
+            @apply bg-yellow-100 text-yellow-800;
+        }
+        .result-info {
+            @apply bg-blue-100 text-blue-800;
+        }
+
+        .matrix-table {
+            @apply table-auto border-collapse border border-gray-400 text-xs text-center;
+        }
+        .matrix-table th, .matrix-table td {
+            @apply border border-gray-300 p-1;
+        }
+        .matrix-table th {
+            @apply bg-gray-100;
+        }
+
+        .setup-box {
+            @apply mb-8 p-4 bg-white border border-gray-200 rounded-lg shadow flex flex-col sm:flex-row items-center justify-center space-y-2 sm:space-y-0 sm:space-x-4;
+        }
+        
+        .instructions {
+            @apply text-center text-sm text-gray-600 p-3 bg-gray-50 rounded-md;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <!-- Container dibuat lebih besar (max-w-7xl) -->
+    <div class="max-w-7xl mx-auto bg-white p-6 md:p-10 rounded-xl shadow-lg">
+
+        <h1 class="text-3xl font-bold text-center text-gray-800 mb-2">Pengecek Isomorfisme Graf Dinamis</h1>
+        <p class="text-center text-gray-600 mb-6">Tentukan jumlah simpul, klik untuk menggambar sisi, lalu bandingkan.</p>
+
+        <!-- Bagian Setup Jumlah Simpul -->
+        <div class="setup-box">
+            <label for="nodeCount" class="text-sm font-medium text-gray-700">Jumlah Simpul per Graf:</label>
+            <input type="number" id="nodeCount" value="6" min="1" max="200" class="w-24 p-2 border border-gray-300 rounded-md text-center text-sm">
+            <button id="createGraphButton" class="btn-secondary">Buat Kerangka Graf</button>
+        </div>
+
+        <!-- Grid dibuat 1 kolom, tapi 2 kolom di layar besar (lg) -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- Kolom Graf G --><div class="p-4 border border-gray-200 rounded-lg">
+                <h3 class="text-xl font-semibold text-center mb-3">Graf G</h3>
+                <!-- Kanvas diperbesar -->
+                <canvas id="graphGCanvas" width="600" height="500" class="mx-auto"></canvas>
+                <div id="inputsG" class="mt-4">
+                    <p class="instructions">Klik 2 simpul di atas untuk membuat/menghapus sisi.</p>
+                </div>
+                <div id="propsG" class="mt-4 text-sm text-gray-700"></div>
+            </div>
+            
+            <!-- Kolom Graf H --><div class="p-4 border border-gray-200 rounded-lg">
+                <h3 class="text-xl font-semibold text-center mb-3">Graf H</h3>
+                <!-- Kanvas diperbesar -->
+                <canvas id="graphHCanvas" width="600" height="500" class="mx-auto"></canvas>
+                <div id="inputsH" class="mt-4">
+                    <p class="instructions">Klik 2 simpul di atas untuk membuat/menghapus sisi.</p>
+                </div>
+                <div id="propsH" class="mt-4 text-sm text-gray-700"></div>
+            </div>
+        </div>
+
+        <div class="text-center mt-8">
+            <button id="checkIsomorphismButton" class="btn">Bandingkan Derajat & Cek Isomorfisme</button>
+        </div>
+        
+        <div id="resultMessage" class="hidden"></div>
+
+        <div id="loadingIndicator" class="hidden mt-4 text-center">
+            <p class="text-blue-600 font-medium">Menjalankan pengecekan isomorfisme penuh... Ini mungkin perlu beberapa detik...</p>
+        </div>
+    </div>
+
+    <script>
+        // Variabel global untuk menyimpan state graf
+        let currentGraphG = { nodes: [], edges: {} }; // edges: {'u1-u2': true, ...}
+        let currentGraphH = { nodes: [], edges: {} };
+        let ctxG, ctxH;
+        let selectedNodeG = null; // Menyimpan node yang di-klik pertama
+        let selectedNodeH = null;
+        // BATAS UNTUK PENGECEKAN PENUH (FULL ALGORITHM)
+        const FULL_CHECK_LIMIT = 15;
+
+        // --- Fungsi Helper untuk Menggambar (Nodes Saja) ---
+        function drawNodes(ctx, graph, selectedNodeId) {
+            const n = graph.nodes.length;
+            // Ukuran simpul dan font dibuat dinamis
+            const nodeRadius = (n > 70) ? 3 : (n > 40) ? 5 : 8;
+            const fontSize = (n > 100) ? 7 : (n > 50) ? 8 : 14;
+            const degreeFontSize = (n > 100) ? 8 : (n > 50) ? 9 : 12;
+
+             // HANYA gambar simpul dan label/derajat
+            graph.nodes.forEach(node => {
+                // Lingkaran simpul
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, nodeRadius, 0, 2 * Math.PI);
+                ctx.fillStyle = '#374151';
+                ctx.fill();
+
+                // Highlight jika terpilih
+                if (node.id === selectedNodeId) {
+                    ctx.beginPath();
+                    ctx.arc(node.x, node.y, nodeRadius + 3, 0, 2 * Math.PI);
+                    ctx.strokeStyle = '#f59e0b'; // Warna kuning/amber
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
+                }
+                
+                // Jangan gambar label jika terlalu banyak simpul
+                // DIUBAH: Hapus 'if (n <= 50)' agar label (u1, v1) selalu tampil
+                // if (n <= 50) { 
+                    // Label simpul (u1, v1, dst)
+                    ctx.fillStyle = '#111827';
+                    ctx.font = `${fontSize}px Inter`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'bottom';
+                    ctx.fillText(node.label, node.x, node.y - (nodeRadius + 2)); 
+                // } // Penutup if dihapus
+
+                // Jangan gambar derajat jika terlalu banyak simpul
+                if (n <= 100) {
+                    // Derajat simpul
+                    ctx.font = `${degreeFontSize}px Inter`;
+                    ctx.textBaseline = 'top';
+                    ctx.fillStyle = '#4b5563'; // abu-abu agak gelap
+                    ctx.fillText(`(${node.degree})`, node.x, node.y + (nodeRadius + 2));
+                }
+            });
+        }
+
+        // --- Fungsi untuk MENGGAMBAR ULANG GRAF (Sisi + Simpul) ---
+        function redrawGraphFromEdges(graphId) {
+            const isG = graphId === 'G';
+            const ctx = isG ? ctxG : ctxH;
+            const graph = isG ? currentGraphG : currentGraphH;
+            const propElId = isG ? 'propsG' : 'propsH';
+            const selectedNodeId = isG ? selectedNodeG?.id : selectedNodeH?.id;
+            const nodeMap = new Map(graph.nodes.map(n => [n.id, n]));
+
+            ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+
+            // 1. Hitung ulang semua derajat DARI AWAL
+            for (const node of graph.nodes) {
+                node.degree = 0;
+            }
+            
+            for (const edgeKey in graph.edges) {
+                if (graph.edges[edgeKey]) { // Jika edge/sisi ada (true)
+                    const [id1, id2] = edgeKey.split('-');
+                    const node1 = nodeMap.get(id1);
+                    const node2 = nodeMap.get(id2);
+                    
+                    if (node1 && node2) {
+                        node1.degree++;
+                        node2.degree++;
+                    }
+                }
+            }
+            
+            // 2. Gambar semua SISI (garis)
+            ctx.strokeStyle = '#374151'; 
+            ctx.lineWidth = (graph.nodes.length > 50) ? 1 : 2; // Garis lebih tipis jika banyak
+            for (const edgeKey in graph.edges) {
+                if (graph.edges[edgeKey]) {
+                    const [id1, id2] = edgeKey.split('-');
+                    const node1 = nodeMap.get(id1);
+                    const node2 = nodeMap.get(id2);
+
+                    if (node1 && node2) {
+                        ctx.beginPath();
+                        ctx.moveTo(node1.x, node1.y);
+                        ctx.lineTo(node2.x, node2.y);
+                        ctx.stroke();
+                    }
+                }
+            }
+
+            // 3. Gambar semua SIMPUL (di atas garis), termasuk highlight
+            drawNodes(ctx, graph, selectedNodeId);
+
+            // 4. Update properti
+            displayProperties(propElId, graph.nodes, graph.edges);
+        }
+
+
+        // --- Fungsi Analisis Graf (Derajat) ---
+        function getDegreeSequence(graphNodes) {
+            return graphNodes.map(node => parseInt(node.degree, 10) || 0).sort((a, b) => a - b);
+        }
+        
+        // --- Fungsi untuk Menampilkan Properti ke HTML ---
+        function displayProperties(elementId, nodes, edges) {
+            const el = document.getElementById(elementId);
+            // FIX: Mengembalikan blok 'if' yang hilang untuk mencegah error
+            if (!nodes || nodes.length === 0) {
+                el.innerHTML = '';
+                return;
+            }
+            const degreeSequence = getDegreeSequence(nodes);
+            // Hitung jumlah sisi
+            const edgeCount = Object.values(edges).filter(Boolean).length;
+
+            let degreesList = '<ul>';
+            // FIX: Mengembalikan loop forEach yang hilang
+            nodes.forEach(node => {
+                degreesList += `<li>deg(${node.label}) = ${node.degree}</li>`;
+            });
+            degreesList += '</ul>';
+            
+            const listHeight = (nodes.length > 20) ? 'max-h-40' : 'max-h-24';
+
+            // FIX: Memastikan blok innerHTML ini benar
+            el.innerHTML = `
+                <p><strong>Jumlah Simpul:</strong> ${nodes.length}</p>
+                <p><strong>Jumlah Sisi:</strong> ${edgeCount}</p>
+                <p><strong>Urutan Derajat (sorted):</strong> ${degreeSequence.join(', ')}</p>
+                <div class="mt-2 text-xs ${listHeight} overflow-y-auto border-t pt-2">
+                    <p><strong>Derajat Individual:</strong></p>
+                    ${degreesList}
+                </div>
+            `;
+        }
+
+        // --- FUNGSI BARU: Mencari simpul yang di-klik ---
+        function getClickedNode(x, y, nodes) {
+            const n = nodes.length;
+            const nodeRadius = (n > 70) ? 3 : (n > 40) ? 5 : 8;
+            // Area klik lebih besar, terutama untuk simpul kecil
+            const hitRadius = nodeRadius + 5; 
+
+            for (const node of nodes) {
+                const dx = x - node.x;
+                const dy = y - node.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                if (distance < hitRadius) {
+                    return node;
+                }
+            }
+            return null;
+        }
+
+        // --- FUNGSI BARU: Membuat ID Sisi yang konsisten (cth: "u1-u5" bukan "u5-u1") ---
+        function getEdgeKey(node1, node2) {
+            // Urutkan berdasarkan ID string
+            if (node1.id < node2.id) {
+                return `${node1.id}-${node2.id}`;
+            } else {
+                return `${node2.id}-${node1.id}`;
+            }
+        }
+        
+        // --- FUNGSI BARU: Setup Listener Klik di Canvas ---
+        // FIX: Memulihkan fungsi ini ke versi lengkapnya
+        function setupCanvasClickListener(graphId, canvas) {
+            canvas.addEventListener('click', (event) => {
+                const isG = (graphId === 'G');
+                const graph = isG ? currentGraphG : currentGraphH;
+                
+                const rect = canvas.getBoundingClientRect();
+                const scaleX = canvas.width / rect.width;
+                const scaleY = canvas.height / rect.height;
+                const x = (event.clientX - rect.left) * scaleX;
+                const y = (event.clientY - rect.top) * scaleY;
+
+                const clickedNode = getClickedNode(x, y, graph.nodes);
+                let selectedNode = isG ? selectedNodeG : selectedNodeH;
+
+                if (!clickedNode) {
+                    // Klik di luar simpul -> batalkan pilihan
+                    if (isG) selectedNodeG = null;
+                    else selectedNodeH = null;
+                    
+                    redrawGraphFromEdges(graphId); // Gambar ulang untuk hapus highlight
+                    return;
+                }
+
+                if (!selectedNode) {
+                    // Klik pertama -> pilih simpul
+                    if (isG) selectedNodeG = clickedNode;
+                    else selectedNodeH = clickedNode;
+                    
+                    redrawGraphFromEdges(graphId); // Gambar ulang untuk TAMBAH highlight
+                } else {
+                    // Klik kedua
+                    if (clickedNode.id === selectedNode.id) {
+                        // Klik simpul yang sama lagi -> batalkan pilihan
+                        if (isG) selectedNodeG = null;
+                        else selectedNodeH = null;
+                        
+                        redrawGraphFromEdges(graphId); // Gambar ulang untuk hapus highlight
+                    } else {
+                        // Klik simpul kedua -> buat/hapus sisi
+                        const edgeKey = getEdgeKey(selectedNode, clickedNode);
+                        
+                        // Toggle sisi (buat jika tidak ada, hapus jika ada)
+                        graph.edges[edgeKey] = !graph.edges[edgeKey];
+                        
+                        // Reset pilihan
+                        if (isG) selectedNodeG = null;
+                        else selectedNodeH = null;
+
+                        // Gambar ulang SEGALANYA (sisi baru, derajat baru, highlight hilang)
+                        redrawGraphFromEdges(graphId);
+                    }
+                }
+            });
+        }
+
+        
+        // --- Fungsi untuk Membuat Kerangka Graf ---
+        
+        function createGraphSkeletons() {
+            const n = parseInt(document.getElementById('nodeCount').value, 10);
+            if (isNaN(n) || n <= 0 || n > 200) {
+                alert("Masukkan jumlah simpul yang valid (1-200).");
+                return;
+            }
+            
+            // Reset state
+            currentGraphG = { nodes: [], edges: {} };
+            currentGraphH = { nodes: [], edges: {} };
+            selectedNodeG = null;
+            selectedNodeH = null;
+            const propsG = document.getElementById('propsG');
+            const propsH = document.getElementById('propsH');
+            
+            // Instruksi sudah ada di HTML, tidak perlu diubah
+            
+            propsG.innerHTML = '';
+            propsH.innerHTML = '';
+            ctxG.clearRect(0, 0, ctxG.canvas.width, ctxG.canvas.height);
+            ctxH.clearRect(0, 0, ctxH.canvas.width, ctxH.canvas.height);
+            document.getElementById('resultMessage').classList.add('hidden');
+
+            // Canvas
+            const canvasWidth = ctxG.canvas.width;
+            const canvasHeight = ctxG.canvas.height;
+            const margin = 40; // Jarak dari tepi kanvas
+
+            if (n <= 20) {
+                // --- MODE LINGKARAN (n <= 20) ---
+                const radius = Math.min(canvasWidth, canvasHeight) / 2 - margin;
+                const centerX = canvasWidth / 2;
+                const centerY = canvasHeight / 2;
+                
+                for (let i = 0; i < n; i++) {
+                    const angle = (i / n) * 2 * Math.PI - (Math.PI / 2); // Mulai dari atas
+                    const x = centerX + radius * Math.cos(angle);
+                    const y = centerY + radius * Math.sin(angle);
+                    
+                    currentGraphG.nodes.push({ id: 'u' + (i + 1), label: 'u' + (i + 1), x, y, degree: 0 });
+                    currentGraphH.nodes.push({ id: 'v' + (i + 1), label: 'v' + (i + 1), x, y, degree: 0 });
+                }
+            } else {
+                // --- MODE GRID (n > 20) ---
+                const cols = Math.ceil(Math.sqrt(n * (canvasWidth / canvasHeight)));
+                const rows = Math.ceil(n / cols);
+                
+                const xSpacing = (canvasWidth - 2 * margin) / (cols - 1 || 1);
+                const ySpacing = (canvasHeight - 2 * margin) / (rows - 1 || 1);
+
+                for (let i = 0; i < n; i++) {
+                    const row = Math.floor(i / cols);
+                    const col = i % cols;
+                    
+                    // Jika hanya 1 simpul, letakkan di tengah
+                    const x = (n === 1) ? canvasWidth / 2 : margin + col * xSpacing;
+                    const y = (n === 1) ? canvasHeight / 2 : margin + row * ySpacing;
+                    
+                    currentGraphG.nodes.push({ id: 'u' + (i + 1), label: 'u' + (i + 1), x, y, degree: 0 });
+                    currentGraphH.nodes.push({ id: 'v' + (i + 1), label: 'v' + (i + 1), x, y, degree: 0 });
+                }
+            }
+
+
+            // Gambar graf awal (hanya simpul, belum ada sisi)
+            drawNodes(ctxG, currentGraphG, null);
+            drawNodes(ctxH, currentGraphH, null);
+            
+            // Tampilkan properti awal
+            displayProperties('propsG', currentGraphG.nodes, currentGraphG.edges);
+            displayProperties('propsH', currentGraphH.nodes, currentGraphH.edges);
+        }
+
+        // --- ============================================ ---
+        // --- ALGORITMA PENGECEKAN ISOMORFISME PENUH (BARU) ---
+        // --- ============================================ ---
+
+        /**
+         * Membangun adjacency set (Map<string, Set<string>>) untuk pengecekan cepat.
+         */
+        function buildAdjacencySet(graph) {
+            const adj = new Map(graph.nodes.map(n => [n.id, new Set()]));
+            for (const edgeKey in graph.edges) {
+                if (graph.edges[edgeKey]) {
+                    const [id1, id2] = edgeKey.split('-');
+                    adj.get(id1).add(id2);
+                    adj.get(id2).add(id1);
+                }
+            }
+            return adj;
+        }
+
+        /**
+         * FUNGSI BARU: Membangun Matriks Ketetanggaan
+         * @param {Array} nodes - Array simpul (HARUS dalam urutan yang diinginkan)
+         * @param {Object} edges - Objek sisi
+         * @returns {Object} { matrix: Array<Array<number>>, labels: Array<string> }
+         */
+        function buildAdjacencyMatrix(nodes, edges) {
+            const n = nodes.length;
+            const labels = nodes.map(node => node.label);
+            const nodeIdToIndex = new Map(nodes.map((node, i) => [node.id, i]));
+            const matrix = Array(n).fill(0).map(() => Array(n).fill(0));
+
+            for (const edgeKey in edges) {
+                if (edges[edgeKey]) {
+                    const [id1, id2] = edgeKey.split('-');
+                    const i = nodeIdToIndex.get(id1);
+                    const j = nodeIdToIndex.get(id2);
+
+                    // Pastikan kedua simpul ada di dalam map (jika tidak, skip)
+                    if (i !== undefined && j !== undefined) {
+                        matrix[i][j] = 1;
+                        matrix[j][i] = 1;
+                    }
+                }
+            }
+            return { matrix, labels };
+        }
+
+        /**
+         * FUNGSI BARU: Memformat Matriks sebagai Tabel HTML
+         */
+        function formatMatrixAsHTML(matrixData) {
+            const { matrix, labels } = matrixData;
+            let html = '<table class="matrix-table">';
+            
+            // Header Row
+            html += '<thead><tr><th>&nbsp;</th>';
+            labels.forEach(label => {
+                html += `<th>${label}</th>`;
+            });
+            html += '</tr></thead>';
+
+            // Body Rows
+            html += '<tbody>';
+            matrix.forEach((row, i) => {
+                html += `<tr><th>${labels[i]}</th>`;
+                row.forEach(cell => {
+                    html += `<td>${cell}</td>`;
+                });
+                html += '</tr>';
+            });
+            html += '</tbody></table>';
+            return html;
+        }
+
+
+        /**
+         * Fungsi utama untuk menjalankan algoritma backtracking.
+         */
+        function checkFullIsomorphism(graphG, graphH) {
+            const adjG = buildAdjacencySet(graphG);
+            const adjH = buildAdjacencySet(graphH);
+
+            // Urutkan simpul berdasarkan derajat (optimasi penting untuk pruning)
+            const gNodes = [...graphG.nodes].sort((a, b) => b.degree - a.degree);
+            const hNodes = [...graphH.nodes].sort((a, b) => b.degree - a.degree);
+
+            const mapping = new Map(); // Map<string, string> -> gNode.id ke hNode.id
+            const hNodesUsed = new Set(); // Set<string> -> hNode.id yang sudah terpakai
+
+            /**
+             * Fungsi rekursif inti
+             * @param {number} gNodeIndex - Indeks simpul G yang sedang dicoba untuk dipetakan
+             */
+            function tryMap(gNodeIndex) {
+                // KASUS DASAR: Semua simpul G berhasil dipetakan
+                if (gNodeIndex === gNodes.length) {
+                    return true;
+                }
+
+                const gNode = gNodes[gNodeIndex];
+
+                // Coba petakan gNode ke setiap hNode yang mungkin
+                for (const hNode of hNodes) {
+                    // --- PRUNING 1: hNode sudah dipakai? ---
+                    if (hNodesUsed.has(hNode.id)) {
+                        continue;
+                    }
+
+                    // --- PRUNING 2: Derajat tidak sama? ---
+                    if (gNode.degree !== hNode.degree) {
+                        continue;
+                    }
+
+                    // --- PRUNING 3: Cek konsistensi pemetaan ---
+                    // Apakah pemetaan gNode -> hNode valid berdasarkan simpul yg *sudah* dipetakan?
+                    let isConsistent = true;
+                    for (let i = 0; i < gNodeIndex; i++) {
+                        const prevGNode = gNodes[i];
+                        const mappedHNodeId = mapping.get(prevGNode.id);
+                        
+                        // Cek apakah gNode bertetangga dengan prevGNode
+                        const gIsAdjacent = adjG.get(gNode.id).has(prevGNode.id);
+                        // Cek apakah hNode bertetangga dengan mappedHNode
+                        const hIsAdjacent = adjH.get(hNode.id).has(mappedHNodeId);
+
+                        if (gIsAdjacent !== hIsAdjacent) {
+                            isConsistent = false;
+                            break; // Pemetaan ini tidak valid
+                        }
+                    }
+
+                    // --- REKURSIF ---
+                    if (isConsistent) {
+                        mapping.set(gNode.id, hNode.id); // Coba petakan
+                        hNodesUsed.add(hNode.id);
+
+                        if (tryMap(gNodeIndex + 1)) {
+                            return true; // Sukses!
+                        }
+
+                        // --- BACKTRACK ---
+                        // Pemetaan ini tidak berhasil, batalkan
+                        hNodesUsed.delete(hNode.id);
+                        mapping.delete(gNode.id);
+                    }
+                }
+
+                // Jika sudah mencoba semua hNode dan tidak ada yang cocok untuk gNode
+                return false;
+            }
+
+            // Mulai rekursi dari simpul G pertama (indeks 0)
+            const isIsomorphic = tryMap(0);
+
+            if (isIsomorphic) {
+                // JANGAN HANYA return true, TAPI KEMBALIKAN PEMETAANNYA
+                return mapping;
+            } else {
+                return false;
+            }
+        }
+
+
+        // --- Event Listener Utama ---
+        document.addEventListener('DOMContentLoaded', () => {
+            // Dapatkan konteks canvas sekali
+            const canvasG = document.getElementById('graphGCanvas');
+            const canvasH = document.getElementById('graphHCanvas');
+            ctxG = canvasG.getContext('2d');
+            ctxH = canvasH.getContext('2d');
+            
+            // Setup listener klik di canvas (BARU)
+            setupCanvasClickListener('G', canvasG);
+            setupCanvasClickListener('H', canvasH);
+            
+            // Listener untuk tombol "Buat Kerangka Graf"
+            document.getElementById('createGraphButton').addEventListener('click', createGraphSkeletons);
+            
+            // Buat graf awal saat halaman dimuat (default 6 simpul)
+            createGraphSkeletons();
+
+            // Event listener untuk tombol utama "Bandingkan Derajat & Cek Isomorfisme"
+            document.getElementById('checkIsomorphismButton').addEventListener('click', () => {
+                const resultEl = document.getElementById('resultMessage');
+                const loadingEl = document.getElementById('loadingIndicator');
+                resultEl.className = ''; // Reset class
+                resultEl.classList.add('hidden');
+                loadingEl.classList.add('hidden');
+                
+                let seqG, seqH;
+                let messages = [];
+                let isIsomorphicCandidate = true;
+
+                // --- 1. JALANKAN SYARAT PERLU (CEPAT) ---
+                
+                // Cek Jumlah Simpul
+                if (currentGraphG.nodes.length !== currentGraphH.nodes.length) {
+                    messages.push(`Jumlah simpul tidak sama (G: ${currentGraphG.nodes.length}, H: ${currentGraphH.nodes.length}).`);
+                    isIsomorphicCandidate = false;
+                } else {
+                    messages.push(`Jumlah simpul SAMA (${currentGraphG.nodes.length}).`);
+                }
+
+                // Cek Jumlah Sisi (BARU)
+                const edgeCountG = Object.values(currentGraphG.edges).filter(Boolean).length;
+                const edgeCountH = Object.values(currentGraphH.edges).filter(Boolean).length;
+                if (edgeCountG !== edgeCountH) {
+                    messages.push(`Jumlah sisi tidak sama (G: ${edgeCountG}, H: ${edgeCountH}).`);
+                    isIsomorphicCandidate = false;
+                } else {
+                    messages.push(`Jumlah sisi SAMA (${edgeCountG}).`);
+                }
+
+                // Cek Urutan Derajat
+                seqG = getDegreeSequence(currentGraphG.nodes);
+                seqH = getDegreeSequence(currentGraphH.nodes);
+                const strSeqG = JSON.stringify(seqG);
+                const strSeqH = JSON.stringify(seqH);
+
+                if (strSeqG !== strSeqH) {
+                    messages.push(`Urutan derajat TIDAK SAMA.`);
+                    messages.push(`Graf G: [${seqG.join(', ')}]`);
+                    messages.push(`Graf H: [${seqH.join(', ')}]`);
+                    isIsomorphicCandidate = false;
+                } else {
+                    messages.push(`Urutan derajat SAMA ([${seqG.join(', ')}]).`);
+                }
+
+                // --- 2. TENTUKAN KESIMPULAN ---
+
+                if (!isIsomorphicCandidate) {
+                    // Gagal di syarat perlu, PASTI TIDAK isomorfik
+                    resultEl.innerHTML = `<strong>Kesimpulan:</strong> Kedua graf <strong>PASTI TIDAK</strong> isomorfik karena salah satu syarat perlu tidak terpenuhi.`;
+                    resultEl.classList.add('result-error');
+                    resultEl.innerHTML += `<ul class="list-disc list-inside text-left w-fit mx-auto mt-2"><li>${messages.join('</li><li>')}</li></ul>`;
+                    resultEl.classList.remove('hidden');
+                } else {
+                    // Lolos syarat perlu, kita cek lebih lanjut
+                    const n = currentGraphG.nodes.length;
+
+                    if (n > FULL_CHECK_LIMIT) {
+                        // --- KASUS: n TERLALU BESAR ---
+                        resultEl.innerHTML = `<strong>Kesimpulan:</strong> Kedua graf ... <strong>MUNGKIN ISOMORFIK</strong>.
+                            <br><small class="font-normal">(Pengecekan penuh tidak dijalankan karena jumlah simpul > ${FULL_CHECK_LIMIT}. Pengecekan akan terlalu lambat.)</small>`;
+                        resultEl.classList.add('result-warning'); // Warna kuning
+                        resultEl.innerHTML += `<ul class="list-disc list-inside text-left w-fit mx-auto mt-2"><li>${messages.join('</li><li>')}</li></ul>`;
+                        resultEl.classList.remove('hidden');
+                    
+                    } else {
+                        // --- KASUS: n KECIL, JALANKAN PENGECEKAN PENUH ---
+                        loadingEl.classList.remove('hidden');
+                        
+                        // Gunakan setTimeout 0 agar UI sempat update (tampilkan loading)
+                        setTimeout(() => {
+                            // Hasilnya sekarang berupa 'false' ATAU sebuah 'Map' pemetaan
+                            const isomorphismResult = checkFullIsomorphism(currentGraphG, currentGraphH);
+                            loadingEl.classList.add('hidden');
+
+                            if (isomorphismResult) {
+                                // --- KITA BERHASIL! (isomorphismResult ADALAH SEBUAH MAP) ---
+                                
+                                // --- Bagian 1: Buat string pemetaan f(u) = v ---
+                                let mappingString = '<p class="text-sm font-normal mt-2">Pemetaan yang ditemukan (f: G → H):</p><ul class="text-xs list-disc list-inside text-left w-fit mx-auto">';
+                                
+                                // Urutkan simpul G agar tampilannya rapi (u1, u2, u3...)
+                                const gNodesSorted = [...currentGraphG.nodes].sort((a, b) => {
+                                    return parseInt(a.id.substring(1)) - parseInt(b.id.substring(1));
+                                });
+                                const hNodeMapById = new Map(currentGraphH.nodes.map(n => [n.id, n])); // Map<id, node_obj>
+
+                                for (const gNode of gNodesSorted) {
+                                    const hNodeId = isomorphismResult.get(gNode.id);
+                                    const hNodeLabel = hNodeMapById.get(hNodeId)?.label || hNodeId;
+                                    mappingString += `<li>f(${gNode.label}) = ${hNodeLabel}</li>`;
+                                }
+                                mappingString += '</ul>';
+
+                                // --- Bagian 2: Buat Pembuktian Matriks ---
+                                let matrixString = '<h4 class="text-md font-medium mt-4">Pembuktian Akhir dengan Matriks</h4>';
+                                matrixString += '<div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-2 overflow-x-auto p-2">';
+
+                                // 2a. Buat Matriks G (AG)
+                                const matrixG_Data = buildAdjacencyMatrix(gNodesSorted, currentGraphG.edges);
+                                const matrixG_HTML = formatMatrixAsHTML(matrixG_Data);
+                                matrixString += `<div><p class="text-sm font-medium mb-1">Matriks G (A<sub>G</sub>)</p>${matrixG_HTML}</div>`;
+
+                                // 2b. Buat Matriks H (AH) yang diurutkan ulang
+                                // Ambil node H sesuai urutan pemetaan
+                                const hNodesReordered = gNodesSorted.map(gNode => {
+                                    const hNodeId = isomorphismResult.get(gNode.id);
+                                    return hNodeMapById.get(hNodeId);
+                                });
+                                const matrixH_Data = buildAdjacencyMatrix(hNodesReordered, currentGraphH.edges);
+                                const matrixH_HTML = formatMatrixAsHTML(matrixH_Data);
+                                matrixString += `<div><p class="text-sm font-medium mb-1">Matriks H (A<sub>H</sub>, diurutkan f(G))</p>${matrixH_HTML}</div>`;
+                                
+                                matrixString += '</div>';
+                                matrixString += '<p class="text-xs text-gray-600 mt-2">Jika kedua matriks identik, maka terbukti f menjaga ketetanggaan (sisi) dan graf adalah isomorfik.</p>';
+
+
+                                // --- Bagian 3: Tampilkan Hasil ---
+                                resultEl.innerHTML = `<strong>Kesimpulan:</strong> Kedua graf <strong>PASTI ISOMORFIK</strong>.
+                                    <br><small class="font-normal">(Pengecekan penuh (n=${n}) berhasil menemukan pemetaan.)</small>`;
+                                resultEl.classList.add('result-success'); // Warna hijau
+                                resultEl.innerHTML += mappingString; // TAMBAHKAN PEMETAAN
+                                resultEl.innerHTML += matrixString; // TAMBAHKAN PEMBUKTIAN MATRIKS
+
+                            } else {
+                                // --- KITA GAGAL ---
+                                resultEl.innerHTML = `<strong>Kesimpulan:</strong> Kedua graf <strong>TIDAK ISOMORFIK</strong>.
+                                    <br><small class="font-normal">(Meskipun syarat perlu terpenuhi, pengecekan penuh (n=${n}) gagal menemukan pemetaan.)</small>`;
+                                resultEl.classList.add('result-error'); // Warna merah
+                            }
+                            resultEl.innerHTML += `<ul class="list-disc list-inside text-left w-fit mx-auto mt-2"><li>${messages.join('</li><li>')}</li></ul>`;
+                            resultEl.classList.remove('hidden');
+                        }, 0);
+                    }
+                }
+            });
+        });
+
+    </script>
+</body>
+</html>
+
+
+
